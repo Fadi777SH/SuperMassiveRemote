@@ -42,13 +42,6 @@ namespace SMR
 
 
             UdpServer.FrameArrived += DisplayFrame;
-            UdpServer.PC2DisConnect += UdpServer_PC2DisConnect;
-
-        }
-
-        private void UdpServer_PC2DisConnect()
-        {
-            System.Windows.MessageBox.Show("one of the two computres should be at least client or a remote");
 
         }
 

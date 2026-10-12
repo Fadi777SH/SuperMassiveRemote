@@ -14,7 +14,7 @@ namespace SMR.Screen
         int ScreenHeight = SystemInformation.VirtualScreen.Height;
 
         private GraphicsCaptureItem _captureItem;
-        public GraphicsCaptureSession _graphicsCaptureSession;
+        public GraphicsCaptureSession _graphicsCaptureSession ;
 
         public Direct3D11CaptureFramePool _direct3D11CaptureFramePool;
         public delegate void FramArrivedHandler(Direct3D11CaptureFramePool Framepool, GraphicsCaptureSession graphics);
@@ -68,6 +68,7 @@ namespace SMR.Screen
                     _captureItem = GraphicsCaptureItem.TryCreateFromDisplayId(displayId);
 
                     dev = GetDirectdevice();
+                    
 
 
                     _direct3D11CaptureFramePool = Direct3D11CaptureFramePool.CreateFreeThreaded(dev, Format, 1, new(ScreenWidth, ScreenHeight));
@@ -76,6 +77,8 @@ namespace SMR.Screen
 
 
                     _graphicsCaptureSession = _direct3D11CaptureFramePool.CreateCaptureSession(_captureItem);
+
+                    _graphicsCaptureSession.IsBorderRequired = true;
                     _graphicsCaptureSession.StartCapture();
                 }
                 catch (Exception ex)

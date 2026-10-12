@@ -1,4 +1,5 @@
-﻿using K4os.Compression.LZ4;
+﻿using FFMpegCore.Arguments;
+using K4os.Compression.LZ4;
 using Microsoft.Graphics.Canvas;
 using SMR.Mouse;
 using SMR.Screen;
@@ -95,7 +96,7 @@ namespace SMR.Server
 
                 System.Windows.MessageBox.Show(ex.Message);
 
-                PC2DisConnect?.Invoke();
+               
 
             }
 
@@ -212,7 +213,9 @@ namespace SMR.Server
         }
         private async void StartReceiveFromRemote(bool state)
         {
+
             if (state == true && Accept != null)
+
                 new Task(async () =>
                 {
 
@@ -224,7 +227,7 @@ namespace SMR.Server
 
                     while (ContinueReceive)
                     {
-                        var buf = new byte[650000];
+                        var buf = new byte[65000];
 
                         if (ClientendPoint != null)
                         {
@@ -242,16 +245,14 @@ namespace SMR.Server
                                         System.Windows.MessageBox.Show("there been an exist or a disconnect from the client side ");
                                     }
                                 }
-
                                 if (currentfingerprint != UDPMSG.FrameFingerPrint)
                                 {
                                     currentfingerprint = UDPMSG.FrameFingerPrint;
 
-                                    Concate = new();
+                                    Concate = new(UDPMSG.TotalSizeOfTheFrame);
                                     concatefirst = false;
 
                                     lastframe = UDPMSG.CurrentChunkNumber;
-
                                 }
                                 if (currentfingerprint == UDPMSG.FrameFingerPrint)
                                 {
@@ -321,6 +322,7 @@ namespace SMR.Server
             ContinueSend = true;
             ContinueReceive = true;
             await Client.ConnectAsync(ClientendPoint);
+
             frameCapture.Stream();
             if (Client.Connected == false)
             {
@@ -411,6 +413,7 @@ namespace SMR.Server
 
 
         #region FrameCaptureRegion
+        static Stopwatch stopwatch = new();
 
         Random random = new();
         private async void UdpServer_SentFrameToPC2bytes(byte[] _MessageByte, int W, int H)
@@ -418,6 +421,8 @@ namespace SMR.Server
 
             var subBuffers = _MessageByte.Chunk(_SingleFrameChunk);
             var totalchunks = subBuffers.Count();
+           
+            //if (totalchunks >= 30) return;
             var count = 0;
             var RandomFingerPrint = random.Next(0, 1000);
             var totalsize = _MessageByte.Length;
@@ -433,7 +438,9 @@ namespace SMR.Server
                 Client?.SendAsync(UDPMSG);
 
             }
-
+            stopwatch.Stop();
+            Debug.WriteLine($" {totalchunks} || time to ship {stopwatch.ElapsedMilliseconds} ::  {1000/stopwatch.ElapsedMilliseconds} FPS");
+            stopwatch.Reset();
         }
 
         private static CanvasDevice _canvasDevice => CanvasDevice.CreateFromDirect3D11Device(FrameCapture.dev);
@@ -441,10 +448,11 @@ namespace SMR.Server
 
         public static async void _direct3D11CaptureFramePool_FrameArrived(Direct3D11CaptureFramePool sender, object args)
         {
-
-
+         
+            
             try
             {
+                
                 using var frame = sender.TryGetNextFrame();
 
                 if (frame != null)
@@ -466,15 +474,18 @@ namespace SMR.Server
 
         private static byte[] LZ4Compression(IDirect3DSurface surface)
         {
-
+            stopwatch.Start();
 
             var _renderTargetBitmap = CanvasRenderTarget.CreateFromDirect3D11Surface(_canvasDevice, surface);
-
+            
             byte[] raw = _renderTargetBitmap.GetPixelBytes();
+            
             var compressed = new byte[LZ4Codec.MaximumOutputSize(raw.Length)];
+            var co = compressed;
+            var w= LZ4Codec.MaximumOutputSize(raw.Length);
             int size = LZ4Codec.Encode(raw, 0, raw.Length, compressed, 0, compressed.Length, LZ4Level.L00_FAST);
-
-
+            
+            
             Array.Resize(ref compressed, size);
 
 
@@ -492,7 +503,7 @@ namespace SMR.Server
                 frameCapture.EndStream();
 
             }
-            if (Client != null && frameCapture.IsStreaming == false)
+            if (Client != null && frameCapture.IsStreaming==false)
             {
                 SentFrameToPC2bytes -= UdpServer_SentFrameToPC2bytes;
                 KeepReceiveFromUser -= StartReceiveFromHooksUser;
