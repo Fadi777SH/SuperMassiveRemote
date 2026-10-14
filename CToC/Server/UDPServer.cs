@@ -57,7 +57,7 @@ namespace SMR.Server
             if (typeOfConnection == TypeOfConnection.Sender)
             {
                 Accept = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp) { ExclusiveAddressUse = false, SendBufferSize = 300 };
-                Client?.Bind(CurrentComputerEndPoint);
+                Accept?.Bind(CurrentComputerEndPoint);
 
             }
 
@@ -65,7 +65,7 @@ namespace SMR.Server
             {
                 Client = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp) { ExclusiveAddressUse = false };
 
-                Accept?.Bind(CurrentComputerEndPoint);
+                Client?.Bind(CurrentComputerEndPoint);
             }
         }
 
