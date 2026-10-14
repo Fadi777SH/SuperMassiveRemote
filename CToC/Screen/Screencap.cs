@@ -86,6 +86,7 @@ namespace SMR.Screen
                     MessageBox.Show(ex.Message);
                 }
             }
+            var w = IsStreaming;
 
         }
 

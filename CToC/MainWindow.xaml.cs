@@ -16,9 +16,9 @@ namespace SMR
 
     public partial class MainWindow : System.Windows.Window
     {
-        UdpServer Server = new();
+       
         public delegate void MouseChangeHandler(System.Windows.Point point);
-
+        UdpServer Server;
         public static event MouseChangeHandler? MouseChange;
 
         public DispatcherQueue _dispatcherQueue;
@@ -35,11 +35,7 @@ namespace SMR
 
             InitializeComponent();
             DataContext = this;
-
-
-            this.ThisPCIPAddress = GetIPAddress().ToString();
-
-
+            ThisPCIPAddress = UdpServer.GetIPAddress().ToString();
 
             UdpServer.FrameArrived += DisplayFrame;
 
@@ -47,7 +43,7 @@ namespace SMR
 
         private void Window_Closed(object sender, EventArgs e)
         {
-            Server?.disconnectAccepter();
+            Server?.disconnectAcceptor();
             Server?.disconnectClient();
 
         }
@@ -101,18 +97,6 @@ namespace SMR
         }
         private string ThisPCIPAddress { get; set; }
 
-        private IPAddress GetIPAddress()
-        {
-            var dns = Dns.GetHostEntry(Dns.GetHostName());
-            foreach (var address in dns.AddressList)
-            {
-                if (address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
-                {
-                    return address;
-                }
-            }
-            return IPAddress.Any;
-        }
 
         private void changingpassword_PasswordOfSender(object sender, System.Windows.Controls.TextChangedEventArgs e)
         {
@@ -134,25 +118,22 @@ namespace SMR
 
             try
             {
-                IPAddress ipofpc1 = IPAddress.Parse(_IPAddress);
+     
                 IPAddress ipofpc2 = IPAddress.Parse(this.IPofRemote.Text);
 
-
+                
 
                 if (btn != null && btn.IsChecked == true)
                 {
-                    if (PC1ToPC2.IsChecked == false && (ipofpc1.ToString() != ipofpc2.ToString()))
+                    Server = new(TypeOfConnection.Remote);
+                    if (PC1ToPC2.IsChecked == false )
                     {
-                        Server?.Reciever(ipofpc1, ipofpc2);
+                        Server?.Reciever(ipofpc2);
 
 
                     }
                     else
                     {
-                        if (ipofpc1.ToString() == ipofpc2.ToString())
-                        {
-                            System.Windows.MessageBox.Show("you can't connect to the same IP of your computer");
-                        }
                         if (PC1ToPC2.IsChecked == true)
                         {
                             System.Windows.MessageBox.Show("you can't be a reciver and a remote at the same time");
@@ -166,7 +147,6 @@ namespace SMR
                     System.Windows.MessageBox.Show("you disconnect as a remote");
                 }
             }
-
             catch (Exception ex)
             {
                 System.Windows.MessageBox.Show($"Invalid IP type . \n {ex.Message}");
@@ -176,26 +156,22 @@ namespace SMR
 
         private void ConnectToWantedDeviceBtn(object sender, RoutedEventArgs e)
         {
-
+           
             var btn = sender as ToggleButton;
             try
             {
-                IPAddress ipofpc1 = IPAddress.Parse(_IPAddress);
                 IPAddress ipofpc2 = IPAddress.Parse(this.IPOfWantedDevice.Text);
 
                 if (btn?.IsChecked == true)
                 {
-                    if (PC2ToPC1?.IsChecked == false && (ipofpc1.ToString() != ipofpc2.ToString()))
+                    if (PC2ToPC1?.IsChecked == false)
                     {
-                        Server?.Sender(ipofpc1, ipofpc2);
+                        Server = new(TypeOfConnection.Sender);
+                        Server?.Sender(ipofpc2);
 
                     }
                     else
                     {
-                        if (ipofpc1.ToString() == ipofpc2.ToString())
-                        {
-                            System.Windows.MessageBox.Show("you can't connect to the same IP of your computer");
-                        }
                         if (PC2ToPC1?.IsChecked == true)
                         {
                             System.Windows.MessageBox.Show("you can't be a reciver and a remote at the same time");
@@ -207,7 +183,7 @@ namespace SMR
                 }
                 else if (btn != null && btn.IsChecked == false)
                 {
-                    Server?.disconnectAccepter();
+                    Server?.disconnectAcceptor();
                     System.Windows.MessageBox.Show("you disconnect as a remote");
                 }
             }

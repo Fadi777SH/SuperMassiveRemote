@@ -49,31 +49,72 @@ namespace SMR.Server
         private bool ContinueReceive = true;
         private const int _SingleFrameChunk = 64000;
 
-        public async Task Sender(IPAddress IPAddressOfPC1, IPAddress IPAddressOfPC2)
+        public UdpServer(TypeOfConnection typeOfConnection)
         {
-            if (Accept?.Connected == true) return;
-            Accept = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+            var CurrentComputerIP = GetIPAddress();
+            var CurrentComputerEndPoint = new IPEndPoint(CurrentComputerIP, PORT);
 
-            Accept.Bind(new IPEndPoint(IPAddressOfPC1, PORT));
+            if (typeOfConnection == TypeOfConnection.Sender)
+            {
+                Accept = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp) { ExclusiveAddressUse = false, SendBufferSize = 300 };
+                Client?.Bind(CurrentComputerEndPoint);
 
-            ContinueSend = true;
-            ContinueReceive = true;
+            }
+
+            if (typeOfConnection == TypeOfConnection.Remote)
+            {
+                Client = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp) { ExclusiveAddressUse = false };
+
+                Accept?.Bind(CurrentComputerEndPoint);
+            }
+        }
+
+        public static IPAddress GetIPAddress()
+        {
+            var dns = Dns.GetHostEntry(Dns.GetHostName());
+            foreach (var address in dns.AddressList)
+            {
+                if (address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+                {
+                    return address;
+                }
+            }
+            return IPAddress.Any;
+        }
+
+
+        public async Task Sender( IPAddress IPAddressOfPC2)
+        {
+            if (Accept == null) return;
+            if (Accept.Connected == true) return;
 
             ClientendPoint = new IPEndPoint(IPAddressOfPC2, PORT);
 
 
-            //new
-            await Accept.ConnectAsync(ClientendPoint);
+            ContinueSend = true;
+            ContinueReceive = true;
+
+            try
+            {
+                await Accept.ConnectAsync(ClientendPoint);
+            }
+            catch(Exception ex)
+            {
+                System.Windows.MessageBox.Show(ex.Message);
+            }
 
             if (Accept.Connected == false)
             {
-                System.Windows.MessageBox.Show("You are not connected to the IP address you picked \n please disconnect and reconnect");
+                System.Windows.MessageBox.Show("You are not connected to the IP address you picked\ntry reconnect to other IP address");
             }
-            StartSendHooks();
+            else
+            {
+                StartSendHooks();
 
-            KeepReceiveFromRemote += StartReceiveFromRemote;
+                KeepReceiveFromRemote += StartReceiveFromRemote;
 
-            KeepReceiveFromRemote?.Invoke(ContinueReceive);
+                KeepReceiveFromRemote?.Invoke(ContinueReceive);
+            }
         }
 
         private async void StartSendHooks()
@@ -310,33 +351,45 @@ namespace SMR.Server
                 }.Start();
         }
 
-        public async Task Reciever(IPAddress IPAddressOfPC1, IPAddress IPAddressOfPC2)
+        public async Task Reciever(IPAddress IPAddressOfPC2)
         {
-
-            Client = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
-
-            Client.Bind(new IPEndPoint(IPAddressOfPC1, PORT));
+            stopwatch.Start();
+            if (Client == null) return;
+            if (Client.Connected == true) return;
 
             ClientendPoint = new IPEndPoint(IPAddressOfPC2, PORT);
 
             ContinueSend = true;
             ContinueReceive = true;
-            await Client.ConnectAsync(ClientendPoint);
 
-            frameCapture.Stream();
+            try
+            {
+                await Client.ConnectAsync(ClientendPoint);
+            }
+            catch(Exception ex)
+            {
+                System.Windows.MessageBox.Show(ex.Message);
+            }
+
+
             if (Client.Connected == false)
             {
-                System.Windows.MessageBox.Show("You are not connected to the IP address you picked");
+                System.Windows.MessageBox.Show("You are not connected to the IP address you picked\ntry reconnect to other IP address");
             }
-            if (ContinueSend)
+            else
             {
-                SentFrameToPC2bytes += UdpServer_SentFrameToPC2bytes;
+                frameCapture.Stream();
+
+                if (ContinueSend)
+                {
+                    SentFrameToPC2bytes += UdpServer_SentFrameToPC2bytes;
+                }
+
+
+                KeepReceiveFromUser += StartReceiveFromHooksUser;
+
+                KeepReceiveFromUser?.Invoke(ContinueReceive);
             }
-
-
-            KeepReceiveFromUser += StartReceiveFromHooksUser;
-
-            KeepReceiveFromUser?.Invoke(ContinueReceive);
         }
 
 
@@ -413,7 +466,7 @@ namespace SMR.Server
 
 
         #region FrameCaptureRegion
-        static Stopwatch stopwatch = new();
+
 
         Random random = new();
         private async void UdpServer_SentFrameToPC2bytes(byte[] _MessageByte, int W, int H)
@@ -421,7 +474,7 @@ namespace SMR.Server
 
             var subBuffers = _MessageByte.Chunk(_SingleFrameChunk);
             var totalchunks = subBuffers.Count();
-           
+
             //if (totalchunks >= 30) return;
             var count = 0;
             var RandomFingerPrint = random.Next(0, 1000);
@@ -438,17 +491,25 @@ namespace SMR.Server
                 Client?.SendAsync(UDPMSG);
 
             }
-            stopwatch.Stop();
-            Debug.WriteLine($" {totalchunks} || time to ship {stopwatch.ElapsedMilliseconds} ::  {1000/stopwatch.ElapsedMilliseconds} FPS");
-            stopwatch.Reset();
+
+
+            FrameCounter++;
+            if (stopwatch.ElapsedMilliseconds >= 1000)
+            {
+                Debug.WriteLine($"{FrameCounter} FPS");
+                
+                stopwatch.Restart();
+                FrameCounter = 0;
+            }
+
         }
 
         private static CanvasDevice _canvasDevice => CanvasDevice.CreateFromDirect3D11Device(FrameCapture.dev);
-
-
+        private static Stopwatch stopwatch=new();
+        private static int FrameCounter=0;
         public static async void _direct3D11CaptureFramePool_FrameArrived(Direct3D11CaptureFramePool sender, object args)
         {
-         
+
             
             try
             {
@@ -457,6 +518,7 @@ namespace SMR.Server
 
                 if (frame != null)
                 {
+
                     var W = frame.Surface.Description.Width;
                     var H = frame.Surface.Description.Height;
 
@@ -474,7 +536,7 @@ namespace SMR.Server
 
         private static byte[] LZ4Compression(IDirect3DSurface surface)
         {
-            stopwatch.Start();
+          
 
             var _renderTargetBitmap = CanvasRenderTarget.CreateFromDirect3D11Surface(_canvasDevice, surface);
             
@@ -498,12 +560,12 @@ namespace SMR.Server
         UDPMessage MSG = new();
         public async Task disconnectClient()
         {
-            if (frameCapture.IsStreaming == true && ContinueSend == true)
+            if (frameCapture.IsStreaming == true)
             {
                 frameCapture.EndStream();
 
             }
-            if (Client != null && frameCapture.IsStreaming==false)
+            if (Client != null && frameCapture.IsStreaming==false && Client.Connected==true)
             {
                 SentFrameToPC2bytes -= UdpServer_SentFrameToPC2bytes;
                 KeepReceiveFromUser -= StartReceiveFromHooksUser;
@@ -517,14 +579,20 @@ namespace SMR.Server
 
                 await Client.SendAsync(bytes);
 
+                try
+                {
 
-                Client.Close();
+                    Client.Close();
+                }catch(Exception ex)
+                {
+                    System.Windows.MessageBox.Show(ex.Message);
+                }
             }
 
         }
-        public async Task disconnectAccepter()
+        public async Task disconnectAcceptor()
         {
-            if (Accept != null)
+            if (Accept != null&&Accept.Connected==true)
             {
                 ContinueSend = false;
                 ContinueReceive = false;
@@ -535,7 +603,13 @@ namespace SMR.Server
 
 
                 KeepReceiveFromRemote -= StartReceiveFromRemote;
-                Accept.Close();
+                try
+                {
+                    Accept.Close();
+                }catch(Exception ex)
+                {
+                    System.Windows.MessageBox.Show(ex.Message);
+                }
             }
             MainWindow.KeyPressEvent -= PressThisKey;
             MainWindow.MouseChange -= MouseChangepos;

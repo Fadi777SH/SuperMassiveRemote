@@ -3,7 +3,10 @@ using System.Windows.Input;
 
 namespace SMR
 {
-
+    public enum TypeOfConnection
+    {
+        Remote, Sender,
+    }
     public enum MessageType
     {
         Keyboard,
